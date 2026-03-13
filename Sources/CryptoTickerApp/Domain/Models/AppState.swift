@@ -23,4 +23,13 @@ final class AppState: ObservableObject {
             detailMessage = configuration.placeholderStatusMessage
         }
     }
+
+    func updateStatusTitle(input: String) {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return
+        }
+
+        statusTitle = trimmed
+    }
 }

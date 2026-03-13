@@ -10,6 +10,7 @@ final class StatusBarController: NSObject {
     private let appState: AppState
     private let statusItem: NSStatusItem
     private var cancellables = Set<AnyCancellable>()
+    private weak var inputTextField: NSTextField?
 
     init(appState: AppState) {
         self.appState = appState
@@ -35,6 +36,12 @@ final class StatusBarController: NSObject {
         detailItem.isEnabled = false
         detailItem.tag = MenuItemTag.detail
 
+        let inputSectionItem = NSMenuItem(title: AppCopy.menuInputSectionTitle, action: nil, keyEquivalent: "")
+        inputSectionItem.isEnabled = false
+
+        let inputItem = NSMenuItem()
+        inputItem.view = makeInputView()
+
         let quitItem = NSMenuItem(
             title: AppCopy.quitMenuTitle,
             action: #selector(quitApplication),
@@ -47,10 +54,48 @@ final class StatusBarController: NSObject {
             .separator(),
             detailItem,
             .separator(),
+            inputSectionItem,
+            inputItem,
+            .separator(),
             quitItem
         ]
 
         statusItem.menu = menu
+    }
+
+    private func makeInputView() -> NSView {
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 240, height: 34))
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        let textField = NSTextField()
+        textField.placeholderString = AppCopy.menuInputPlaceholder
+        textField.target = self
+        textField.action = #selector(applyInputFromTextField)
+        textField.translatesAutoresizingMaskIntoConstraints = false
+
+        let applyButton = NSButton(
+            title: AppCopy.menuApplyInputTitle,
+            target: self,
+            action: #selector(applyInputFromButton)
+        )
+        applyButton.bezelStyle = .rounded
+        applyButton.translatesAutoresizingMaskIntoConstraints = false
+
+        container.addSubview(textField)
+        container.addSubview(applyButton)
+
+        NSLayoutConstraint.activate([
+            container.widthAnchor.constraint(equalToConstant: 240),
+            container.heightAnchor.constraint(equalToConstant: 34),
+            textField.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            textField.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            textField.trailingAnchor.constraint(equalTo: applyButton.leadingAnchor, constant: -8),
+            applyButton.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            applyButton.centerYAnchor.constraint(equalTo: container.centerYAnchor)
+        ])
+
+        inputTextField = textField
+        return container
     }
 
     private func bindAppState() {
@@ -67,5 +112,19 @@ final class StatusBarController: NSObject {
     @objc
     private func quitApplication() {
         NSApp.terminate(nil)
+    }
+
+    @objc
+    private func applyInputFromTextField() {
+        guard let inputTextField else {
+            return
+        }
+
+        appState.updateStatusTitle(input: inputTextField.stringValue)
+    }
+
+    @objc
+    private func applyInputFromButton() {
+        applyInputFromTextField()
     }
 }
