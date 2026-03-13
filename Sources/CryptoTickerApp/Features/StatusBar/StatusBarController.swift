@@ -29,8 +29,14 @@ final class StatusBarController: NSObject {
     }
 
     private func configureStatusItem() {
-        statusItem.button?.title = appState.statusTitle
-        statusItem.button?.toolTip = AppCopy.statusItemTooltip
+        guard let button = statusItem.button else {
+            statusItem.menu = menu
+            return
+        }
+        button.toolTip = AppCopy.statusItemTooltip
+        button.imagePosition = .imageLeading
+        button.imageScaling = .scaleProportionallyDown
+        updateStatusItemAppearance(title: appState.statusTitle, showsErrorIndicator: appState.showsErrorIndicator)
         statusItem.menu = menu
     }
 
@@ -136,10 +142,10 @@ final class StatusBarController: NSObject {
     }
 
     private func bindAppState() {
-        appState.$statusTitle
+        Publishers.CombineLatest(appState.$statusTitle, appState.$showsErrorIndicator)
             .receive(on: RunLoop.main)
-            .sink { [weak self] title in
-                self?.statusItem.button?.title = title
+            .sink { [weak self] title, showsErrorIndicator in
+                self?.updateStatusItemAppearance(title: title, showsErrorIndicator: showsErrorIndicator)
             }
             .store(in: &cancellables)
 
@@ -191,6 +197,23 @@ final class StatusBarController: NSObject {
         let result = coordinator.addCustomSymbol(input: inputField.stringValue)
         if case .success = result {
             refreshUI()
+        }
+    }
+
+    private func updateStatusItemAppearance(title: String, showsErrorIndicator: Bool) {
+        guard let button = statusItem.button else {
+            return
+        }
+        button.title = title
+        if showsErrorIndicator {
+            let image = NSImage(
+                systemSymbolName: "exclamationmark.circle.fill",
+                accessibilityDescription: "请求失败"
+            )
+            image?.isTemplate = true
+            button.image = image
+        } else {
+            button.image = nil
         }
     }
 

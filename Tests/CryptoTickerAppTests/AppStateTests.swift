@@ -80,4 +80,37 @@ struct AppStateTests {
 
         #expect(appState.statusTitle == "BTC 65000.10")
     }
+
+    @Test
+    func showsErrorIndicatorAfterThreeConsecutivePriceFailures() {
+        let appState = AppState()
+
+        appState.applyPriceError()
+        #expect(appState.showsErrorIndicator == false)
+
+        appState.applyPriceError()
+        #expect(appState.showsErrorIndicator == false)
+
+        appState.applyPriceError()
+
+        #expect(appState.showsErrorIndicator == true)
+    }
+
+    @Test
+    func successfulPriceRefreshClearsErrorIndicator() {
+        let appState = AppState()
+
+        appState.applyPriceError()
+        appState.applyPriceError()
+        appState.applyPriceError()
+        appState.applyPrice(
+            PriceSnapshot(
+                symbol: "BTCUSDT",
+                priceText: "65000",
+                capturedAt: .now
+            )
+        )
+
+        #expect(appState.showsErrorIndicator == false)
+    }
 }

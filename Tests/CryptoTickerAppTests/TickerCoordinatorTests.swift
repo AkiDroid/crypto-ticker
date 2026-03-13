@@ -80,4 +80,35 @@ struct TickerCoordinatorTests {
         #expect(scheduler.lastInterval == 5)
         #expect(configurationProvider.refreshInterval == 5)
     }
+
+    @Test
+    func threeConsecutiveRefreshFailuresShowStatusBarErrorIndicator() async throws {
+        let appState = AppState()
+        let scheduler = NoopRefreshScheduler()
+        let configurationProvider = StubAppConfigurationProvider()
+        let priceProvider = StubPriceProvider(
+            queuedResults: [
+                .failure(StubPriceProviderError.notImplemented),
+                .failure(StubPriceProviderError.notImplemented),
+                .failure(StubPriceProviderError.notImplemented)
+            ]
+        )
+        let coordinator = TickerCoordinator(
+            appState: appState,
+            priceProvider: priceProvider,
+            configurationProvider: configurationProvider,
+            refreshScheduler: scheduler
+        )
+
+        coordinator.start()
+        await Task.yield()
+        scheduler.fire()
+        await Task.yield()
+        scheduler.fire()
+        await Task.yield()
+        scheduler.fire()
+        await Task.yield()
+
+        #expect(appState.showsErrorIndicator == true)
+    }
 }

@@ -15,14 +15,20 @@ final class AppState: ObservableObject {
         case outOfRange
     }
 
+    private enum StatusBarState {
+        static let failureIndicatorThreshold = 3
+    }
+
     @Published private(set) var statusTitle: String
     @Published private(set) var detailMessage: String
     @Published private(set) var selectedSymbol: String
     @Published private(set) var customSymbols: [String]
     @Published private(set) var refreshInterval: TimeInterval
+    @Published private(set) var showsErrorIndicator: Bool = false
 
     let builtinSymbols: [String]
     let didNormalizeRefreshIntervalFromPersistedValue: Bool
+    private var consecutivePriceFailureCount = 0
 
     init(
         statusTitle: String = AppCopy.defaultStatusTitle,
@@ -71,6 +77,7 @@ final class AppState: ObservableObject {
         }
 
         selectedSymbol = normalized
+        resetPriceFailureState()
         statusTitle = "\(baseSymbol(of: normalized)) --"
         detailMessage = "已切换到 \(normalized)，正在刷新价格"
     }
@@ -102,6 +109,7 @@ final class AppState: ObservableObject {
         customSymbols.remove(at: targetIndex)
         if selectedSymbol == normalized {
             selectedSymbol = builtinSymbols[0]
+            resetPriceFailureState()
             statusTitle = "\(baseSymbol(of: selectedSymbol)) --"
         }
         detailMessage = "\(AppCopy.customSymbolDeletedMessage) \(normalized)"
@@ -125,11 +133,14 @@ final class AppState: ObservableObject {
     func applyPrice(_ snapshot: PriceSnapshot) {
         let symbol = Self.normalizeSymbol(snapshot.symbol)
         let displaySymbol = baseSymbol(of: symbol)
+        resetPriceFailureState()
         statusTitle = "\(displaySymbol) \(snapshot.formattedPrice)"
         detailMessage = "\(symbol): \(snapshot.formattedPrice)"
     }
 
     func applyPriceError(_ message: String = AppCopy.priceFetchFailedMessage) {
+        consecutivePriceFailureCount += 1
+        showsErrorIndicator = consecutivePriceFailureCount >= StatusBarState.failureIndicatorThreshold
         detailMessage = message
     }
 
@@ -173,5 +184,10 @@ final class AppState: ObservableObject {
             return String(symbol.dropLast(4))
         }
         return symbol
+    }
+
+    private func resetPriceFailureState() {
+        consecutivePriceFailureCount = 0
+        showsErrorIndicator = false
     }
 }
