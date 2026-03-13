@@ -16,7 +16,7 @@ final class TickerCoordinator: TickerCoordinating {
     private let priceProvider: any PriceProviding
     private let configurationProvider: any AppConfigurationProviding
     private let refreshScheduler: any RefreshScheduling
-    private var refreshTask: Task<Void, Never>?
+    private var selectedPriceRefreshTask: Task<Void, Never>?
     private var hasPersistedNormalizedRefreshInterval = false
 
     init(
@@ -42,7 +42,7 @@ final class TickerCoordinator: TickerCoordinating {
 
     func stop() {
         refreshScheduler.stop()
-        refreshTask?.cancel()
+        selectedPriceRefreshTask?.cancel()
     }
 
     func selectSymbol(_ symbol: String) {
@@ -101,8 +101,8 @@ final class TickerCoordinator: TickerCoordinating {
 
     private func refreshNow() {
         let symbol = appState.selectedSymbol
-        refreshTask?.cancel()
-        refreshTask = Task { [weak self] in
+        selectedPriceRefreshTask?.cancel()
+        selectedPriceRefreshTask = Task { [weak self] in
             guard let self else {
                 return
             }

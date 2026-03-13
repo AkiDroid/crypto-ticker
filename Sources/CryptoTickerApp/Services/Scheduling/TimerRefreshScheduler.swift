@@ -8,13 +8,15 @@ final class TimerRefreshScheduler: RefreshScheduling {
     func start(interval: TimeInterval, _ action: @escaping () -> Void) {
         stop()
         self.action = action
-        timer = Timer.scheduledTimer(
+        let timer = Timer(
             timeInterval: interval,
             target: self,
             selector: #selector(handleTimerTick),
             userInfo: nil,
             repeats: true
         )
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
     }
 
     func stop() {

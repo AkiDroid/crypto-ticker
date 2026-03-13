@@ -2,16 +2,11 @@ import AppKit
 import Combine
 
 @MainActor
-final class StatusBarController: NSObject, NSMenuDelegate {
+final class StatusBarController: NSObject {
     private enum Layout {
-        static let controlWidth: CGFloat = 228
-        static let controlHeight: CGFloat = 34
-        static let horizontalInset: CGFloat = 18
-        static let itemSpacing: CGFloat = 8
-        static let minTextFieldWidth: CGFloat = 96
-        static let customRowWidth: CGFloat = 260
+        static let symbolRowWidth: CGFloat = 228
         static let customRowHeight: CGFloat = 26
-        static let customRowHorizontalInset: CGFloat = 12
+        static let symbolRowHorizontalInset: CGFloat = 18
     }
 
     private let appState: AppState
@@ -19,7 +14,6 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
     private let menu = NSMenu()
     private var cancellables = Set<AnyCancellable>()
-    private weak var customSymbolTextField: NSTextField?
 
     init(
         appState: AppState,
@@ -29,7 +23,6 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         self.coordinator = coordinator
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
-        menu.delegate = self
         configureStatusItem()
         refreshUI()
         bindAppState()
@@ -42,7 +35,6 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     private func refreshUI() {
-        statusItem.button?.title = appState.statusTitle
         rebuildMenuItems()
         menu.update()
     }
@@ -59,7 +51,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         menu.items = [headerItem, .separator(), builtinSectionItem]
 
         for symbol in appState.builtinSymbols {
-            menu.addItem(makeSymbolItem(symbol))
+            menu.addItem(makeSymbolRowItem(symbol, allowsDeletion: false))
         }
 
         menu.addItem(.separator())
@@ -67,9 +59,13 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         customSectionItem.isEnabled = false
         menu.addItem(customSectionItem)
 
-        let customInputItem = NSMenuItem()
-        customInputItem.view = makeCustomSymbolInputView()
-        menu.addItem(customInputItem)
+        let addCustomSymbolItem = NSMenuItem(
+            title: AppCopy.menuAddCustomSymbolTitle,
+            action: #selector(promptAddCustomSymbol),
+            keyEquivalent: ""
+        )
+        addCustomSymbolItem.target = self
+        menu.addItem(addCustomSymbolItem)
 
         if appState.customSymbols.isEmpty {
             let noCustomItem = NSMenuItem(title: AppCopy.menuNoCustomSymbols, action: nil, keyEquivalent: "")
@@ -77,7 +73,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             menu.addItem(noCustomItem)
         } else {
             for symbol in appState.customSymbols {
-                menu.addItem(makeCustomSymbolRowItem(symbol))
+                menu.addItem(makeSymbolRowItem(symbol, allowsDeletion: true))
             }
         }
 
@@ -109,86 +105,51 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         menu.addItem(quitItem)
     }
 
-    private func makeSymbolItem(_ symbol: String) -> NSMenuItem {
-        let item = NSMenuItem(
-            title: symbol,
-            action: #selector(selectSymbolFromMenuItem),
-            keyEquivalent: ""
-        )
-        item.target = self
-        item.representedObject = symbol
-        item.state = appState.selectedSymbol == symbol ? .on : .off
-        return item
-    }
-
-    private func makeCustomSymbolRowItem(_ symbol: String) -> NSMenuItem {
+    private func makeSymbolRowItem(_ symbol: String, allowsDeletion: Bool) -> NSMenuItem {
         let item = NSMenuItem()
-        let rowView = CustomSymbolRowView(
+        let rowView = SymbolRowView(
             symbol: symbol,
             isSelected: appState.selectedSymbol == symbol,
-            width: Layout.customRowWidth,
+            allowsDeletion: allowsDeletion,
+            width: Layout.symbolRowWidth,
             height: Layout.customRowHeight,
-            horizontalInset: Layout.customRowHorizontalInset
+            horizontalInset: Layout.symbolRowHorizontalInset
         )
         rowView.onSelect = { [weak self] in
-            self?.coordinator.selectSymbol(symbol)
+            guard let self else {
+                return
+            }
+            self.coordinator.selectSymbol(symbol)
+            self.refreshUI()
         }
         rowView.onDeleteConfirmed = { [weak self] in
             guard let self else {
                 return
             }
-            _ = self.coordinator.removeCustomSymbol(symbol)
+            let removed = self.coordinator.removeCustomSymbol(symbol)
+            if removed {
+                self.refreshUI()
+            }
         }
         item.view = rowView
         return item
     }
 
-    private func makeCustomSymbolInputView() -> NSView {
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: Layout.controlWidth, height: Layout.controlHeight))
-        container.translatesAutoresizingMaskIntoConstraints = false
-
-        let textField = HoverCursorTextField()
-        textField.placeholderString = AppCopy.menuCustomInputPlaceholder
-        textField.target = self
-        textField.action = #selector(addCustomSymbolFromTextField)
-        textField.translatesAutoresizingMaskIntoConstraints = false
-
-        let applyButton = HoverCursorButton(
-            title: AppCopy.menuAddCustomSymbolTitle,
-            target: self,
-            action: #selector(addCustomSymbolFromButton)
-        )
-        applyButton.bezelStyle = .rounded
-        applyButton.translatesAutoresizingMaskIntoConstraints = false
-
-        container.addSubview(textField)
-        container.addSubview(applyButton)
-
-        NSLayoutConstraint.activate([
-            container.widthAnchor.constraint(equalToConstant: Layout.controlWidth),
-            container.heightAnchor.constraint(equalToConstant: Layout.controlHeight),
-            textField.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: Layout.horizontalInset),
-            textField.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            textField.trailingAnchor.constraint(equalTo: applyButton.leadingAnchor, constant: -Layout.itemSpacing),
-            textField.widthAnchor.constraint(greaterThanOrEqualToConstant: Layout.minTextFieldWidth),
-            applyButton.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -Layout.horizontalInset),
-            applyButton.centerYAnchor.constraint(equalTo: container.centerYAnchor)
-        ])
-
-        customSymbolTextField = textField
-        return container
-    }
-
     private func bindAppState() {
-        let updates: [AnyPublisher<Void, Never>] = [
-            appState.$statusTitle.map { _ in () }.eraseToAnyPublisher(),
-            appState.$detailMessage.map { _ in () }.eraseToAnyPublisher(),
+        appState.$statusTitle
+            .receive(on: RunLoop.main)
+            .sink { [weak self] title in
+                self?.statusItem.button?.title = title
+            }
+            .store(in: &cancellables)
+
+        let menuStructureUpdates: [AnyPublisher<Void, Never>] = [
             appState.$selectedSymbol.map { _ in () }.eraseToAnyPublisher(),
             appState.$customSymbols.map { _ in () }.eraseToAnyPublisher(),
             appState.$refreshInterval.map { _ in () }.eraseToAnyPublisher()
         ]
 
-        Publishers.MergeMany(updates)
+        Publishers.MergeMany(menuStructureUpdates)
             .receive(on: RunLoop.main)
             .sink { [weak self] in
                 self?.refreshUI()
@@ -202,25 +163,6 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     @objc
-    private func selectSymbolFromMenuItem(_ sender: NSMenuItem) {
-        guard let symbol = sender.representedObject as? String else {
-            return
-        }
-
-        coordinator.selectSymbol(symbol)
-    }
-
-    @objc
-    private func addCustomSymbolFromTextField() {
-        applyCustomSymbolInput()
-    }
-
-    @objc
-    private func addCustomSymbolFromButton() {
-        applyCustomSymbolInput()
-    }
-
-    @objc
     private func selectRefreshIntervalPreset(_ sender: NSMenuItem) {
         guard let interval = sender.representedObject as? Int else {
             return
@@ -228,31 +170,30 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         _ = coordinator.updateRefreshInterval(input: String(interval))
     }
 
-    private func applyCustomSymbolInput() {
-        guard let customSymbolTextField else {
+    @objc
+    private func promptAddCustomSymbol() {
+        let inputField = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
+        inputField.placeholderString = AppCopy.menuCustomInputPlaceholder
+
+        let alert = NSAlert()
+        alert.messageText = AppCopy.addSymbolPromptTitle
+        alert.informativeText = AppCopy.addSymbolPromptMessage
+        alert.alertStyle = .informational
+        alert.accessoryView = inputField
+        alert.addButton(withTitle: AppCopy.addSymbolConfirmButton)
+        alert.addButton(withTitle: AppCopy.addSymbolCancelButton)
+
+        let response = alert.runModal()
+        guard response == .alertFirstButtonReturn else {
             return
         }
 
-        let result = coordinator.addCustomSymbol(input: customSymbolTextField.stringValue)
+        let result = coordinator.addCustomSymbol(input: inputField.stringValue)
         if case .success = result {
-            customSymbolTextField.stringValue = ""
             refreshUI()
         }
     }
 
-    func menuWillOpen(_ menu: NSMenu) {
-        DispatchQueue.main.async { [weak self] in
-            guard
-                let self,
-                let customSymbolTextField,
-                let window = customSymbolTextField.window
-            else {
-                return
-            }
-            window.makeFirstResponder(customSymbolTextField)
-            customSymbolTextField.selectText(nil)
-        }
-    }
 }
 
 final class HoverCursorButton: NSButton {
@@ -263,16 +204,8 @@ final class HoverCursorButton: NSButton {
     }
 }
 
-final class HoverCursorTextField: NSTextField {
-    override func resetCursorRects() {
-        discardCursorRects()
-        addCursorRect(bounds, cursor: .iBeam)
-        super.resetCursorRects()
-    }
-}
-
-final class CustomSymbolRowView: NSView {
-    private let symbol: String
+final class SymbolRowView: NSView {
+    private let allowsDeletion: Bool
     private var isConfirmingDelete = false
     private var trackingArea: NSTrackingArea?
 
@@ -284,6 +217,7 @@ final class CustomSymbolRowView: NSView {
         button.isBordered = false
         button.alignment = .left
         button.font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+        button.contentTintColor = .labelColor
         button.lineBreakMode = .byTruncatingTail
         button.translatesAutoresizingMaskIntoConstraints = false
         return button
@@ -293,7 +227,7 @@ final class CustomSymbolRowView: NSView {
         let button = HoverCursorButton(title: AppCopy.inlineDeleteButtonTitle, target: self, action: #selector(enterConfirmDelete))
         button.isBordered = false
         button.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
-        button.contentTintColor = .secondaryLabelColor
+        button.contentTintColor = .labelColor
         button.translatesAutoresizingMaskIntoConstraints = false
         button.isHidden = true
         return button
@@ -326,9 +260,10 @@ final class CustomSymbolRowView: NSView {
     }()
 
     private let symbolButtonTitle: String
+    private var dynamicConstraints: [NSLayoutConstraint] = []
 
-    init(symbol: String, isSelected: Bool, width: CGFloat, height: CGFloat, horizontalInset: CGFloat) {
-        self.symbol = symbol
+    init(symbol: String, isSelected: Bool, allowsDeletion: Bool, width: CGFloat, height: CGFloat, horizontalInset: CGFloat) {
+        self.allowsDeletion = allowsDeletion
         symbolButtonTitle = isSelected ? "✓ \(symbol)" : symbol
         super.init(frame: NSRect(x: 0, y: 0, width: width, height: height))
         translatesAutoresizingMaskIntoConstraints = false
@@ -347,11 +282,6 @@ final class CustomSymbolRowView: NSView {
             symbolButton.centerYAnchor.constraint(equalTo: centerYAnchor),
             symbolButton.trailingAnchor.constraint(lessThanOrEqualTo: actionContainer.leadingAnchor, constant: -8),
 
-            actionContainer.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -horizontalInset),
-            actionContainer.centerYAnchor.constraint(equalTo: centerYAnchor),
-            actionContainer.heightAnchor.constraint(equalTo: heightAnchor),
-            actionContainer.widthAnchor.constraint(greaterThanOrEqualToConstant: 72),
-
             deleteButton.trailingAnchor.constraint(equalTo: actionContainer.trailingAnchor),
             deleteButton.centerYAnchor.constraint(equalTo: actionContainer.centerYAnchor),
 
@@ -361,6 +291,24 @@ final class CustomSymbolRowView: NSView {
             confirmButton.trailingAnchor.constraint(equalTo: cancelButton.leadingAnchor, constant: -8),
             confirmButton.centerYAnchor.constraint(equalTo: actionContainer.centerYAnchor)
         ])
+
+        if allowsDeletion {
+            dynamicConstraints = [
+                actionContainer.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -horizontalInset),
+                actionContainer.centerYAnchor.constraint(equalTo: centerYAnchor),
+                actionContainer.heightAnchor.constraint(equalTo: heightAnchor),
+                actionContainer.widthAnchor.constraint(greaterThanOrEqualToConstant: 72)
+            ]
+        } else {
+            dynamicConstraints = [
+                actionContainer.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -horizontalInset),
+                actionContainer.centerYAnchor.constraint(equalTo: centerYAnchor),
+                actionContainer.heightAnchor.constraint(equalTo: heightAnchor),
+                actionContainer.widthAnchor.constraint(equalToConstant: 0)
+            ]
+            actionContainer.isHidden = true
+        }
+        NSLayoutConstraint.activate(dynamicConstraints)
     }
 
     @available(*, unavailable)
@@ -369,6 +317,15 @@ final class CustomSymbolRowView: NSView {
     }
 
     override func updateTrackingAreas() {
+        guard allowsDeletion else {
+            if let trackingArea {
+                removeTrackingArea(trackingArea)
+                self.trackingArea = nil
+            }
+            super.updateTrackingAreas()
+            return
+        }
+
         if let trackingArea {
             removeTrackingArea(trackingArea)
         }
@@ -386,7 +343,7 @@ final class CustomSymbolRowView: NSView {
 
     override func mouseEntered(with event: NSEvent) {
         super.mouseEntered(with: event)
-        guard !isConfirmingDelete else {
+        guard allowsDeletion, !isConfirmingDelete else {
             return
         }
         deleteButton.isHidden = false
@@ -394,7 +351,7 @@ final class CustomSymbolRowView: NSView {
 
     override func mouseExited(with event: NSEvent) {
         super.mouseExited(with: event)
-        guard !isConfirmingDelete else {
+        guard allowsDeletion, !isConfirmingDelete else {
             return
         }
         deleteButton.isHidden = true
@@ -407,6 +364,9 @@ final class CustomSymbolRowView: NSView {
 
     @objc
     private func enterConfirmDelete() {
+        guard allowsDeletion else {
+            return
+        }
         isConfirmingDelete = true
         deleteButton.isHidden = true
         confirmButton.isHidden = false

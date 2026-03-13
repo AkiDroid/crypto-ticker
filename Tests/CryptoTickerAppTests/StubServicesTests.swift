@@ -13,9 +13,7 @@ struct StubServicesTests {
 
     @Test
     func stubPriceProviderReturnsSnapshot() async throws {
-        let snapshot = try await StubPriceProvider().currentSnapshot(
-            for: "BTCUSDT"
-        )
+        let snapshot = try await StubPriceProvider().currentSnapshot(for: "BTCUSDT")
 
         #expect(snapshot.symbol == "BTCUSDT")
         #expect(snapshot.formattedPrice == "0.00")
