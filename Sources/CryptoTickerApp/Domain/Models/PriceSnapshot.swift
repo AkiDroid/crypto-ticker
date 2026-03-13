@@ -1,7 +1,7 @@
 import Foundation
 
 struct PriceSnapshot: Equatable {
-    let asset: CryptoAsset
+    let symbol: String
     let priceText: String
     let capturedAt: Date
 

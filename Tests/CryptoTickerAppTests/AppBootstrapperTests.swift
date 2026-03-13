@@ -3,22 +3,42 @@ import Testing
 
 @MainActor
 struct AppBootstrapperTests {
+    private final class CoordinatorSpy: TickerCoordinating {
+        private(set) var startCallCount = 0
+        private(set) var stopCallCount = 0
+
+        func start() {
+            startCallCount += 1
+        }
+
+        func stop() {
+            stopCallCount += 1
+        }
+
+        func selectSymbol(_ symbol: String) {}
+
+        func addCustomSymbol(input: String) -> AppState.SymbolMutationResult {
+            .invalidInput
+        }
+
+        func removeCustomSymbol(_ symbol: String) -> Bool {
+            false
+        }
+
+        func updateRefreshInterval(input: String) -> AppState.IntervalMutationResult {
+            .invalidFormat
+        }
+    }
+
     @Test
-    func bootstrapperAppliesPlaceholderState() {
-        let appState = AppState()
-        let scheduler = NoopRefreshScheduler()
-        let container = AppContainer(
-            appState: appState,
-            priceProvider: StubPriceProvider(),
-            configurationProvider: StubAppConfigurationProvider(),
-            refreshScheduler: scheduler
-        )
+    func bootstrapperDelegatesLifecycleToCoordinator() {
+        let coordinator = CoordinatorSpy()
+        let bootstrapper = AppBootstrapper(coordinator: coordinator)
 
-        let bootstrapper = AppBootstrapper(container: container)
         bootstrapper.start()
+        bootstrapper.stop()
 
-        #expect(appState.statusTitle == "BTC")
-        #expect(appState.detailMessage == AppCopy.defaultDetailMessage)
-        #expect(scheduler.isRunning)
+        #expect(coordinator.startCallCount == 1)
+        #expect(coordinator.stopCallCount == 1)
     }
 }

@@ -1,15 +1,16 @@
 @MainActor
 final class AppBootstrapper {
-    private let container: AppContainer
+    private let coordinator: any TickerCoordinating
 
-    init(container: AppContainer) {
-        self.container = container
+    init(coordinator: any TickerCoordinating) {
+        self.coordinator = coordinator
     }
 
     func start() {
-        let configuration = container.configurationProvider.loadConfiguration()
-        let snapshot = try? container.priceProvider.currentSnapshot(for: configuration.defaultAsset)
-        container.appState.applyPlaceholder(configuration: configuration, snapshot: snapshot)
-        container.refreshScheduler.start {}
+        coordinator.start()
+    }
+
+    func stop() {
+        coordinator.stop()
     }
 }

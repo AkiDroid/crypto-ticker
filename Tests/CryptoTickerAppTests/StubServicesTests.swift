@@ -6,17 +6,18 @@ struct StubServicesTests {
     func stubConfigurationProvidesDefaultAsset() {
         let configuration = StubAppConfigurationProvider().loadConfiguration()
 
-        #expect(configuration.defaultAsset.symbol == "BTC")
-        #expect(configuration.defaultAsset.displayName == "Bitcoin")
-        #expect(configuration.placeholderStatusMessage == AppCopy.defaultDetailMessage)
+        #expect(configuration.selectedSymbol == "BTCUSDT")
+        #expect(configuration.builtinSymbols == ["BTCUSDT", "ETHUSDT", "SOLUSDT"])
+        #expect(configuration.customSymbols.isEmpty)
     }
 
     @Test
-    func stubPriceProviderReturnsNoSnapshot() throws {
-        let snapshot = try StubPriceProvider().currentSnapshot(
-            for: CryptoAsset(symbol: "BTC", displayName: "Bitcoin")
+    func stubPriceProviderReturnsSnapshot() async throws {
+        let snapshot = try await StubPriceProvider().currentSnapshot(
+            for: "BTCUSDT"
         )
 
-        #expect(snapshot == nil)
+        #expect(snapshot.symbol == "BTCUSDT")
+        #expect(snapshot.formattedPrice == "0.00")
     }
 }

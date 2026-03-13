@@ -7,7 +7,7 @@
 当前阶段优先保证：
 
 - 应用可以作为状态栏程序运行
-- 结构上为后续价格能力预留扩展点
+- 价格获取与刷新行为有明确分层
 - 文档足够轻，AI 读取成本低
 
 ## 当前功能边界
@@ -15,17 +15,17 @@
 当前已经支持：
 
 - 应用启动后创建状态栏项
-- 状态栏菜单显示基础说明与退出入口
-- 在菜单输入框中提交非空文本后，更新状态栏标题
-- 空白输入不会覆盖当前标题
-- 通过 stub 服务完成应用装配与占位运行
+- 状态栏菜单显示说明、交易对管理、刷新间隔设置和退出入口
+- 默认交易对 `BTCUSDT`、`ETHUSDT`、`SOLUSDT`，固定不可删除
+- 自定义交易对添加与删除（删除前确认）
+- 选中交易对后即时拉取 Binance USDT-M 永续最新价格
+- 定时刷新价格，刷新间隔支持 1-300 秒配置并持久化
+- 应用重启后恢复已选交易对、自定义交易对列表和刷新间隔
 
 当前还不支持：
 
-- 真实价格拉取
-- 刷新调度的业务逻辑
-- 用户设置持久化
-- 多币种切换
+- 历史价格/缓存策略
+- API 限流与自动退避重试
 - 生产级发布流程
 
 ## 代码结构
@@ -37,39 +37,44 @@
 
 ### 功能层
 
-- `Sources/CryptoTickerApp/Features/StatusBar/StatusBarController.swift`：状态栏项、菜单、输入框与提交行为
+- `Sources/CryptoTickerApp/Features/StatusBar/StatusBarController.swift`：状态栏项、菜单渲染、交易对与间隔交互
 
 ### 领域层
 
-- `Sources/CryptoTickerApp/Domain/Models/AppState.swift`：状态栏标题和详情等运行时状态
-- `Sources/CryptoTickerApp/Domain/Models/AppConfiguration.swift`：应用配置模型
-- `Sources/CryptoTickerApp/Domain/Models/CryptoAsset.swift`：币种模型
+- `Sources/CryptoTickerApp/Domain/Models/AppState.swift`：交易对列表、选中项、刷新间隔、状态栏展示状态
+- `Sources/CryptoTickerApp/Domain/Models/AppConfiguration.swift`：默认交易对、持久化配置模型
 - `Sources/CryptoTickerApp/Domain/Models/PriceSnapshot.swift`：价格快照模型
 
 ### 服务层
 
 - `Sources/CryptoTickerApp/Services/Protocols/`：价格、配置、刷新相关协议
-- `Sources/CryptoTickerApp/Services/Stubs/`：当前使用的占位实现
+- `Sources/CryptoTickerApp/Services/Remote/BinanceFuturesPriceProvider.swift`：Binance 永续价格 API 实现
+- `Sources/CryptoTickerApp/Services/Scheduling/TimerRefreshScheduler.swift`：基于 `Timer` 的刷新调度
+- `Sources/CryptoTickerApp/Services/Storage/UserDefaultsAppConfigurationProvider.swift`：本地配置持久化
+- `Sources/CryptoTickerApp/Services/Stubs/`：测试用 stub 实现
 
 ### 支持层
 
 - `Sources/CryptoTickerApp/Support/AppContainer.swift`：依赖容器
-- `Sources/CryptoTickerApp/Support/AppBootstrapper.swift`：应用启动装配流程
+- `Sources/CryptoTickerApp/Support/AppBootstrapper.swift`：应用启动和停止调度
+- `Sources/CryptoTickerApp/Support/TickerCoordinator.swift`：交易对操作、配置落盘、价格刷新协调
 - `Sources/CryptoTickerApp/Support/AppCopy.swift`：界面文案常量
 
 ### 测试
 
 - `Tests/CryptoTickerAppTests/AppBootstrapperTests.swift`
 - `Tests/CryptoTickerAppTests/AppStateTests.swift`
+- `Tests/CryptoTickerAppTests/TickerCoordinatorTests.swift`
 - `Tests/CryptoTickerAppTests/StubServicesTests.swift`
 
 ## 当前行为约束
 
-- `AppState.updateStatusTitle(input:)` 会先做首尾空白裁剪
-- 裁剪后为空时，不更新现有标题
-- 状态栏标题由 `AppState` 统一管理，`StatusBarController` 负责 UI 事件转发和订阅
-- 当前默认标题为 `--`
-- 当前默认详情文案为“价格服务尚未接入”
+- 默认交易对只能选择，不能删除
+- 自定义交易对输入会执行“去空格 + 大写 + 去重”规则
+- 刷新间隔仅接受整数秒，且必须在 1 到 300 之间
+- 状态栏标题展示为“币种简称 + 价格”；`USDT` 后缀会被省略
+- 状态栏展示状态由 `AppState` 统一管理，菜单事件由 `StatusBarController` 转发给 `TickerCoordinator`
+- 持久化仅保存：已选交易对、自定义交易对、刷新间隔
 
 ## 开发约定
 

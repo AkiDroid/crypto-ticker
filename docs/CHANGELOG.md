@@ -2,6 +2,53 @@
 
 使用轻量日志记录已完成的实际变更。只记录已经落地到代码或文档的内容，不记录纯规划。
 
+## 2026-03-13 - 状态栏交易对管理与 Binance 实时价格
+
+### 背景 / 目的
+
+移除之前用于测试的“输入文字更新状态栏”能力，改为可实际使用的交易对选择与实时价格展示，并支持刷新间隔持久化。
+
+### 代码改动点
+
+- 重构 `StatusBarController` 菜单结构，新增：
+  - 默认交易对选择（`BTCUSDT`/`ETHUSDT`/`SOLUSDT`）
+  - 自定义交易对添加与删除（删除前确认）
+  - 刷新间隔输入与应用（1-300 秒）
+- 重写 `AppState`，新增并管理：
+  - `selectedSymbol`
+  - `builtinSymbols`
+  - `customSymbols`
+  - `refreshInterval`
+  - 价格展示与输入校验逻辑
+- 新增 `TickerCoordinator` 统一处理：
+  - 交易对切换后的即时拉取
+  - 定时刷新调度
+  - 用户配置持久化保存
+- 新增真实服务实现：
+  - `BinanceFuturesPriceProvider`（`/fapi/v1/ticker/price`）
+  - `TimerRefreshScheduler`
+  - `UserDefaultsAppConfigurationProvider`
+- 更新协议：
+  - `PriceProviding` 改为异步价格接口
+  - `RefreshScheduling` 支持按间隔启动
+  - `AppConfigurationProviding` 增加保存配置方法
+- 删除 `CryptoAsset` 旧模型及相关旧调用链。
+
+### 文档同步情况
+
+- 已更新 `README.md`：改为当前真实能力说明（交易对管理、Binance 实时价格、间隔持久化）
+- 已更新 `docs/PROJECT.md`：同步功能边界、结构分层、行为约束、测试清单
+- 本条 `docs/CHANGELOG.md` 记录本次实现事实
+
+### 验证情况
+
+- 已执行 `swift test`，当前测试通过
+- 新增/更新测试：
+  - `AppStateTests`
+  - `TickerCoordinatorTests`
+  - `AppBootstrapperTests`
+  - `StubServicesTests`
+
 ## 2026-03-13 - 初始化 macOS 状态栏应用骨架
 
 ### 背景 / 目的

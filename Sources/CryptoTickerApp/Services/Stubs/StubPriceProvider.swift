@@ -5,7 +5,11 @@ enum StubPriceProviderError: Error {
 }
 
 final class StubPriceProvider: PriceProviding {
-    func currentSnapshot(for asset: CryptoAsset) throws -> PriceSnapshot? {
-        nil
+    func currentSnapshot(for symbol: String) async throws -> PriceSnapshot {
+        PriceSnapshot(
+            symbol: symbol,
+            priceText: "0.00",
+            capturedAt: Date()
+        )
     }
 }

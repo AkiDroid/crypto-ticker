@@ -18,11 +18,14 @@ final class AppContainer {
     }
 
     static func bootstrap() -> AppContainer {
-        AppContainer(
-            appState: AppState(),
-            priceProvider: StubPriceProvider(),
-            configurationProvider: StubAppConfigurationProvider(),
-            refreshScheduler: NoopRefreshScheduler()
+        let configurationProvider = UserDefaultsAppConfigurationProvider()
+        let configuration = configurationProvider.loadConfiguration()
+
+        return AppContainer(
+            appState: AppState(configuration: configuration),
+            priceProvider: BinanceFuturesPriceProvider(),
+            configurationProvider: configurationProvider,
+            refreshScheduler: TimerRefreshScheduler()
         )
     }
 }
