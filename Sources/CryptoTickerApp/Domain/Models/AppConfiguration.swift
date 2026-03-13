@@ -8,6 +8,7 @@ struct AppConfiguration: Equatable {
 
     static let defaultBuiltinSymbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
     static let defaultRefreshInterval: TimeInterval = 5
+    static let refreshIntervalPresets = [3, 5, 10, 30, 60]
 
     static let `default` = AppConfiguration(
         builtinSymbols: defaultBuiltinSymbols,

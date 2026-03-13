@@ -17,6 +17,7 @@ final class TickerCoordinator: TickerCoordinating {
     private let configurationProvider: any AppConfigurationProviding
     private let refreshScheduler: any RefreshScheduling
     private var refreshTask: Task<Void, Never>?
+    private var hasPersistedNormalizedRefreshInterval = false
 
     init(
         appState: AppState,
@@ -31,6 +32,10 @@ final class TickerCoordinator: TickerCoordinating {
     }
 
     func start() {
+        if appState.didNormalizeRefreshIntervalFromPersistedValue, !hasPersistedNormalizedRefreshInterval {
+            persistConfiguration()
+            hasPersistedNormalizedRefreshInterval = true
+        }
         restartRefreshSchedule()
         refreshNow()
     }

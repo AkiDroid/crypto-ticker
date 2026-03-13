@@ -20,4 +20,32 @@ struct StubServicesTests {
         #expect(snapshot.symbol == "BTCUSDT")
         #expect(snapshot.formattedPrice == "0.00")
     }
+
+    @Test
+    func priceSnapshotFormatsToTwoDecimals() {
+        let decimalSnapshot = PriceSnapshot(
+            symbol: "BTCUSDT",
+            priceText: "65000.1",
+            capturedAt: .now
+        )
+        let integerSnapshot = PriceSnapshot(
+            symbol: "ETHUSDT",
+            priceText: "65000",
+            capturedAt: .now
+        )
+
+        #expect(decimalSnapshot.formattedPrice == "65000.10")
+        #expect(integerSnapshot.formattedPrice == "65000.00")
+    }
+
+    @Test
+    func priceSnapshotFallsBackForInvalidText() {
+        let snapshot = PriceSnapshot(
+            symbol: "SOLUSDT",
+            priceText: "N/A",
+            capturedAt: .now
+        )
+
+        #expect(snapshot.formattedPrice == "N/A")
+    }
 }

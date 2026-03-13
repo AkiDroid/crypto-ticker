@@ -39,20 +39,31 @@ struct AppStateTests {
     }
 
     @Test
-    func updateRefreshIntervalHandlesBounds() {
+    func updateRefreshIntervalAcceptsOnlyPresetValues() {
         let appState = AppState()
 
-        let tooSmall = appState.updateRefreshInterval(input: "0")
-        let lowerBound = appState.updateRefreshInterval(input: "1")
-        let upperBound = appState.updateRefreshInterval(input: "300")
-        let tooLarge = appState.updateRefreshInterval(input: "301")
+        let invalidSmall = appState.updateRefreshInterval(input: "1")
+        let validPreset = appState.updateRefreshInterval(input: "10")
+        let invalidCustom = appState.updateRefreshInterval(input: "7")
+        let invalidLarge = appState.updateRefreshInterval(input: "300")
         let invalid = appState.updateRefreshInterval(input: "abc")
 
-        #expect(tooSmall == .outOfRange)
-        #expect(lowerBound == .success(1))
-        #expect(upperBound == .success(300))
-        #expect(tooLarge == .outOfRange)
+        #expect(invalidSmall == .outOfRange)
+        #expect(validPreset == .success(10))
+        #expect(invalidCustom == .outOfRange)
+        #expect(invalidLarge == .outOfRange)
         #expect(invalid == .invalidFormat)
+    }
+
+    @Test
+    func initNormalizesRefreshIntervalToNearestPreset() {
+        let lowerNearest = AppState(refreshInterval: 7)
+        let upperNearest = AppState(refreshInterval: 28)
+
+        #expect(lowerNearest.refreshInterval == 5)
+        #expect(upperNearest.refreshInterval == 30)
+        #expect(lowerNearest.didNormalizeRefreshIntervalFromPersistedValue)
+        #expect(upperNearest.didNormalizeRefreshIntervalFromPersistedValue)
     }
 
     @Test
@@ -62,11 +73,11 @@ struct AppStateTests {
         appState.applyPrice(
             PriceSnapshot(
                 symbol: "BTCUSDT",
-                priceText: "65000.12",
+                priceText: "65000.1",
                 capturedAt: .now
             )
         )
 
-        #expect(appState.statusTitle == "BTC 65000.12")
+        #expect(appState.statusTitle == "BTC 65000.10")
     }
 }

@@ -2,13 +2,24 @@ import AppKit
 import Combine
 
 @MainActor
-final class StatusBarController: NSObject {
+final class StatusBarController: NSObject, NSMenuDelegate {
+    private enum Layout {
+        static let controlWidth: CGFloat = 228
+        static let controlHeight: CGFloat = 34
+        static let horizontalInset: CGFloat = 18
+        static let itemSpacing: CGFloat = 8
+        static let minTextFieldWidth: CGFloat = 96
+        static let customRowWidth: CGFloat = 260
+        static let customRowHeight: CGFloat = 26
+        static let customRowHorizontalInset: CGFloat = 12
+    }
+
     private let appState: AppState
     private let coordinator: any TickerCoordinating
     private let statusItem: NSStatusItem
+    private let menu = NSMenu()
     private var cancellables = Set<AnyCancellable>()
     private weak var customSymbolTextField: NSTextField?
-    private weak var refreshIntervalTextField: NSTextField?
 
     init(
         appState: AppState,
@@ -18,6 +29,7 @@ final class StatusBarController: NSObject {
         self.coordinator = coordinator
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
+        menu.delegate = self
         configureStatusItem()
         refreshUI()
         bindAppState()
@@ -26,30 +38,25 @@ final class StatusBarController: NSObject {
     private func configureStatusItem() {
         statusItem.button?.title = appState.statusTitle
         statusItem.button?.toolTip = AppCopy.statusItemTooltip
+        statusItem.menu = menu
     }
 
     private func refreshUI() {
         statusItem.button?.title = appState.statusTitle
-        statusItem.menu = buildMenu()
+        rebuildMenuItems()
+        menu.update()
     }
 
-    private func buildMenu() -> NSMenu {
-        let menu = NSMenu()
+    private func rebuildMenuItems() {
+        menu.removeAllItems()
 
         let headerItem = NSMenuItem(title: AppCopy.menuHeaderTitle, action: nil, keyEquivalent: "")
         headerItem.isEnabled = false
 
-        let detailItem = NSMenuItem(
-            title: "\(AppCopy.menuDetailPrefix)：\(appState.detailMessage)",
-            action: nil,
-            keyEquivalent: ""
-        )
-        detailItem.isEnabled = false
-
         let builtinSectionItem = NSMenuItem(title: AppCopy.menuBuiltinSectionTitle, action: nil, keyEquivalent: "")
         builtinSectionItem.isEnabled = false
 
-        menu.items = [headerItem, .separator(), detailItem, .separator(), builtinSectionItem]
+        menu.items = [headerItem, .separator(), builtinSectionItem]
 
         for symbol in appState.builtinSymbols {
             menu.addItem(makeSymbolItem(symbol))
@@ -70,25 +77,7 @@ final class StatusBarController: NSObject {
             menu.addItem(noCustomItem)
         } else {
             for symbol in appState.customSymbols {
-                menu.addItem(makeSymbolItem(symbol))
-            }
-        }
-
-        if !appState.customSymbols.isEmpty {
-            menu.addItem(.separator())
-            let deleteSectionItem = NSMenuItem(title: AppCopy.menuDeleteSectionTitle, action: nil, keyEquivalent: "")
-            deleteSectionItem.isEnabled = false
-            menu.addItem(deleteSectionItem)
-
-            for symbol in appState.customSymbols {
-                let deleteItem = NSMenuItem(
-                    title: "\(AppCopy.deleteConfirmDeleteButton) \(symbol)",
-                    action: #selector(confirmDeleteCustomSymbol),
-                    keyEquivalent: ""
-                )
-                deleteItem.target = self
-                deleteItem.representedObject = symbol
-                menu.addItem(deleteItem)
+                menu.addItem(makeCustomSymbolRowItem(symbol))
             }
         }
 
@@ -97,9 +86,17 @@ final class StatusBarController: NSObject {
         refreshSectionItem.isEnabled = false
         menu.addItem(refreshSectionItem)
 
-        let refreshItem = NSMenuItem()
-        refreshItem.view = makeRefreshIntervalInputView()
-        menu.addItem(refreshItem)
+        for preset in AppConfiguration.refreshIntervalPresets {
+            let presetItem = NSMenuItem(
+                title: "\(preset) 秒",
+                action: #selector(selectRefreshIntervalPreset),
+                keyEquivalent: ""
+            )
+            presetItem.target = self
+            presetItem.representedObject = preset
+            presetItem.state = Int(appState.refreshInterval) == preset ? .on : .off
+            menu.addItem(presetItem)
+        }
 
         let quitItem = NSMenuItem(
             title: AppCopy.quitMenuTitle,
@@ -110,7 +107,6 @@ final class StatusBarController: NSObject {
 
         menu.addItem(.separator())
         menu.addItem(quitItem)
-        return menu
     }
 
     private func makeSymbolItem(_ symbol: String) -> NSMenuItem {
@@ -125,17 +121,39 @@ final class StatusBarController: NSObject {
         return item
     }
 
+    private func makeCustomSymbolRowItem(_ symbol: String) -> NSMenuItem {
+        let item = NSMenuItem()
+        let rowView = CustomSymbolRowView(
+            symbol: symbol,
+            isSelected: appState.selectedSymbol == symbol,
+            width: Layout.customRowWidth,
+            height: Layout.customRowHeight,
+            horizontalInset: Layout.customRowHorizontalInset
+        )
+        rowView.onSelect = { [weak self] in
+            self?.coordinator.selectSymbol(symbol)
+        }
+        rowView.onDeleteConfirmed = { [weak self] in
+            guard let self else {
+                return
+            }
+            _ = self.coordinator.removeCustomSymbol(symbol)
+        }
+        item.view = rowView
+        return item
+    }
+
     private func makeCustomSymbolInputView() -> NSView {
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: 240, height: 34))
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: Layout.controlWidth, height: Layout.controlHeight))
         container.translatesAutoresizingMaskIntoConstraints = false
 
-        let textField = NSTextField()
+        let textField = HoverCursorTextField()
         textField.placeholderString = AppCopy.menuCustomInputPlaceholder
         textField.target = self
         textField.action = #selector(addCustomSymbolFromTextField)
         textField.translatesAutoresizingMaskIntoConstraints = false
 
-        let applyButton = NSButton(
+        let applyButton = HoverCursorButton(
             title: AppCopy.menuAddCustomSymbolTitle,
             target: self,
             action: #selector(addCustomSymbolFromButton)
@@ -147,51 +165,17 @@ final class StatusBarController: NSObject {
         container.addSubview(applyButton)
 
         NSLayoutConstraint.activate([
-            container.widthAnchor.constraint(equalToConstant: 240),
-            container.heightAnchor.constraint(equalToConstant: 34),
-            textField.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            container.widthAnchor.constraint(equalToConstant: Layout.controlWidth),
+            container.heightAnchor.constraint(equalToConstant: Layout.controlHeight),
+            textField.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: Layout.horizontalInset),
             textField.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            textField.trailingAnchor.constraint(equalTo: applyButton.leadingAnchor, constant: -8),
-            applyButton.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            textField.trailingAnchor.constraint(equalTo: applyButton.leadingAnchor, constant: -Layout.itemSpacing),
+            textField.widthAnchor.constraint(greaterThanOrEqualToConstant: Layout.minTextFieldWidth),
+            applyButton.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -Layout.horizontalInset),
             applyButton.centerYAnchor.constraint(equalTo: container.centerYAnchor)
         ])
 
         customSymbolTextField = textField
-        return container
-    }
-
-    private func makeRefreshIntervalInputView() -> NSView {
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: 240, height: 34))
-        container.translatesAutoresizingMaskIntoConstraints = false
-
-        let textField = NSTextField(string: String(Int(appState.refreshInterval)))
-        textField.placeholderString = AppCopy.menuRefreshInputPlaceholder
-        textField.target = self
-        textField.action = #selector(applyRefreshIntervalFromTextField)
-        textField.translatesAutoresizingMaskIntoConstraints = false
-
-        let applyButton = NSButton(
-            title: AppCopy.menuApplyRefreshTitle,
-            target: self,
-            action: #selector(applyRefreshIntervalFromButton)
-        )
-        applyButton.bezelStyle = .rounded
-        applyButton.translatesAutoresizingMaskIntoConstraints = false
-
-        container.addSubview(textField)
-        container.addSubview(applyButton)
-
-        NSLayoutConstraint.activate([
-            container.widthAnchor.constraint(equalToConstant: 240),
-            container.heightAnchor.constraint(equalToConstant: 34),
-            textField.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            textField.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            textField.trailingAnchor.constraint(equalTo: applyButton.leadingAnchor, constant: -8),
-            applyButton.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            applyButton.centerYAnchor.constraint(equalTo: container.centerYAnchor)
-        ])
-
-        refreshIntervalTextField = textField
         return container
     }
 
@@ -237,33 +221,11 @@ final class StatusBarController: NSObject {
     }
 
     @objc
-    private func applyRefreshIntervalFromTextField() {
-        applyRefreshIntervalInput()
-    }
-
-    @objc
-    private func applyRefreshIntervalFromButton() {
-        applyRefreshIntervalInput()
-    }
-
-    @objc
-    private func confirmDeleteCustomSymbol(_ sender: NSMenuItem) {
-        guard let symbol = sender.representedObject as? String else {
+    private func selectRefreshIntervalPreset(_ sender: NSMenuItem) {
+        guard let interval = sender.representedObject as? Int else {
             return
         }
-
-        let alert = NSAlert()
-        alert.messageText = AppCopy.deleteConfirmTitle
-        alert.informativeText = "\(AppCopy.deleteConfirmMessagePrefix) \(symbol)？"
-        alert.addButton(withTitle: AppCopy.deleteConfirmDeleteButton)
-        alert.addButton(withTitle: AppCopy.deleteConfirmCancelButton)
-
-        let response = alert.runModal()
-        guard response == .alertFirstButtonReturn else {
-            return
-        }
-
-        _ = coordinator.removeCustomSymbol(symbol)
+        _ = coordinator.updateRefreshInterval(input: String(interval))
     }
 
     private func applyCustomSymbolInput() {
@@ -274,14 +236,193 @@ final class StatusBarController: NSObject {
         let result = coordinator.addCustomSymbol(input: customSymbolTextField.stringValue)
         if case .success = result {
             customSymbolTextField.stringValue = ""
+            refreshUI()
         }
     }
 
-    private func applyRefreshIntervalInput() {
-        guard let refreshIntervalTextField else {
-            return
+    func menuWillOpen(_ menu: NSMenu) {
+        DispatchQueue.main.async { [weak self] in
+            guard
+                let self,
+                let customSymbolTextField,
+                let window = customSymbolTextField.window
+            else {
+                return
+            }
+            window.makeFirstResponder(customSymbolTextField)
+            customSymbolTextField.selectText(nil)
+        }
+    }
+}
+
+final class HoverCursorButton: NSButton {
+    override func resetCursorRects() {
+        discardCursorRects()
+        addCursorRect(bounds, cursor: .pointingHand)
+        super.resetCursorRects()
+    }
+}
+
+final class HoverCursorTextField: NSTextField {
+    override func resetCursorRects() {
+        discardCursorRects()
+        addCursorRect(bounds, cursor: .iBeam)
+        super.resetCursorRects()
+    }
+}
+
+final class CustomSymbolRowView: NSView {
+    private let symbol: String
+    private var isConfirmingDelete = false
+    private var trackingArea: NSTrackingArea?
+
+    var onSelect: (() -> Void)?
+    var onDeleteConfirmed: (() -> Void)?
+
+    private lazy var symbolButton: NSButton = {
+        let button = HoverCursorButton(title: symbolButtonTitle, target: self, action: #selector(selectSymbol))
+        button.isBordered = false
+        button.alignment = .left
+        button.font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+        button.lineBreakMode = .byTruncatingTail
+        button.translatesAutoresizingMaskIntoConstraints = false
+        return button
+    }()
+
+    private lazy var deleteButton: NSButton = {
+        let button = HoverCursorButton(title: AppCopy.inlineDeleteButtonTitle, target: self, action: #selector(enterConfirmDelete))
+        button.isBordered = false
+        button.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        button.contentTintColor = .secondaryLabelColor
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.isHidden = true
+        return button
+    }()
+
+    private lazy var confirmButton: NSButton = {
+        let button = HoverCursorButton(title: AppCopy.deleteConfirmDeleteButton, target: self, action: #selector(confirmDelete))
+        button.isBordered = false
+        button.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        button.contentTintColor = .systemRed
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.isHidden = true
+        return button
+    }()
+
+    private lazy var cancelButton: NSButton = {
+        let button = HoverCursorButton(title: AppCopy.deleteConfirmCancelButton, target: self, action: #selector(cancelDelete))
+        button.isBordered = false
+        button.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        button.contentTintColor = .secondaryLabelColor
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.isHidden = true
+        return button
+    }()
+
+    private lazy var actionContainer: NSView = {
+        let view = NSView()
+        view.translatesAutoresizingMaskIntoConstraints = false
+        return view
+    }()
+
+    private let symbolButtonTitle: String
+
+    init(symbol: String, isSelected: Bool, width: CGFloat, height: CGFloat, horizontalInset: CGFloat) {
+        self.symbol = symbol
+        symbolButtonTitle = isSelected ? "✓ \(symbol)" : symbol
+        super.init(frame: NSRect(x: 0, y: 0, width: width, height: height))
+        translatesAutoresizingMaskIntoConstraints = false
+
+        addSubview(symbolButton)
+        addSubview(actionContainer)
+        actionContainer.addSubview(deleteButton)
+        actionContainer.addSubview(confirmButton)
+        actionContainer.addSubview(cancelButton)
+
+        NSLayoutConstraint.activate([
+            widthAnchor.constraint(equalToConstant: width),
+            heightAnchor.constraint(equalToConstant: height),
+
+            symbolButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: horizontalInset),
+            symbolButton.centerYAnchor.constraint(equalTo: centerYAnchor),
+            symbolButton.trailingAnchor.constraint(lessThanOrEqualTo: actionContainer.leadingAnchor, constant: -8),
+
+            actionContainer.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -horizontalInset),
+            actionContainer.centerYAnchor.constraint(equalTo: centerYAnchor),
+            actionContainer.heightAnchor.constraint(equalTo: heightAnchor),
+            actionContainer.widthAnchor.constraint(greaterThanOrEqualToConstant: 72),
+
+            deleteButton.trailingAnchor.constraint(equalTo: actionContainer.trailingAnchor),
+            deleteButton.centerYAnchor.constraint(equalTo: actionContainer.centerYAnchor),
+
+            cancelButton.trailingAnchor.constraint(equalTo: actionContainer.trailingAnchor),
+            cancelButton.centerYAnchor.constraint(equalTo: actionContainer.centerYAnchor),
+
+            confirmButton.trailingAnchor.constraint(equalTo: cancelButton.leadingAnchor, constant: -8),
+            confirmButton.centerYAnchor.constraint(equalTo: actionContainer.centerYAnchor)
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func updateTrackingAreas() {
+        if let trackingArea {
+            removeTrackingArea(trackingArea)
         }
 
-        _ = coordinator.updateRefreshInterval(input: refreshIntervalTextField.stringValue)
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        trackingArea = area
+        super.updateTrackingAreas()
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
+        guard !isConfirmingDelete else {
+            return
+        }
+        deleteButton.isHidden = false
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        guard !isConfirmingDelete else {
+            return
+        }
+        deleteButton.isHidden = true
+    }
+
+    @objc
+    private func selectSymbol() {
+        onSelect?()
+    }
+
+    @objc
+    private func enterConfirmDelete() {
+        isConfirmingDelete = true
+        deleteButton.isHidden = true
+        confirmButton.isHidden = false
+        cancelButton.isHidden = false
+    }
+
+    @objc
+    private func confirmDelete() {
+        onDeleteConfirmed?()
+    }
+
+    @objc
+    private func cancelDelete() {
+        isConfirmingDelete = false
+        confirmButton.isHidden = true
+        cancelButton.isHidden = true
+        deleteButton.isHidden = true
     }
 }

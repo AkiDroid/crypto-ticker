@@ -6,6 +6,13 @@ struct PriceSnapshot: Equatable {
     let capturedAt: Date
 
     var formattedPrice: String {
-        priceText
+        guard let value = Double(priceText) else {
+            return priceText
+        }
+        return String(
+            format: "%.2f",
+            locale: Locale(identifier: "en_US_POSIX"),
+            value
+        )
     }
 }

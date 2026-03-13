@@ -59,4 +59,25 @@ struct TickerCoordinatorTests {
 
         #expect(configurationProvider.selectedSymbol == "BNBUSDT")
     }
+
+    @Test
+    func startPersistsNormalizedRefreshIntervalFromLegacyValue() async throws {
+        let appState = AppState(refreshInterval: 7)
+        let scheduler = NoopRefreshScheduler()
+        let configurationProvider = StubAppConfigurationProvider()
+        let coordinator = TickerCoordinator(
+            appState: appState,
+            priceProvider: StubPriceProvider(),
+            configurationProvider: configurationProvider,
+            refreshScheduler: scheduler
+        )
+
+        coordinator.start()
+        await Task.yield()
+        await Task.yield()
+
+        #expect(appState.refreshInterval == 5)
+        #expect(scheduler.lastInterval == 5)
+        #expect(configurationProvider.refreshInterval == 5)
+    }
 }

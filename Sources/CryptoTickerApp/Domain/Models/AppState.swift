@@ -22,6 +22,7 @@ final class AppState: ObservableObject {
     @Published private(set) var refreshInterval: TimeInterval
 
     let builtinSymbols: [String]
+    let didNormalizeRefreshIntervalFromPersistedValue: Bool
 
     init(
         statusTitle: String = AppCopy.defaultStatusTitle,
@@ -38,10 +39,13 @@ final class AppState: ObservableObject {
         let allSymbols = resolvedBuiltins + normalizedCustoms
         let normalizedSelected = AppState.normalizeSymbol(selectedSymbol)
 
+        let normalizedRefreshResult = AppState.normalizedRefreshInterval(refreshInterval)
+
         self.builtinSymbols = resolvedBuiltins
         self.customSymbols = normalizedCustoms
         self.selectedSymbol = allSymbols.contains(normalizedSelected) ? normalizedSelected : resolvedBuiltins[0]
-        self.refreshInterval = refreshInterval
+        self.refreshInterval = normalizedRefreshResult.interval
+        self.didNormalizeRefreshIntervalFromPersistedValue = normalizedRefreshResult.didNormalize
         self.statusTitle = statusTitle
         self.detailMessage = detailMessage
         self.statusTitle = "\(baseSymbol(of: self.selectedSymbol)) --"
@@ -109,7 +113,7 @@ final class AppState: ObservableObject {
         guard let interval = Int(trimmed) else {
             return .invalidFormat
         }
-        guard (1...300).contains(interval) else {
+        guard AppConfiguration.refreshIntervalPresets.contains(interval) else {
             return .outOfRange
         }
 
@@ -143,6 +147,25 @@ final class AppState: ObservableObject {
             .map(Self.normalizeSymbol)
             .filter { !$0.isEmpty }
             .filter { seen.insert($0).inserted }
+    }
+
+    private static func normalizedRefreshInterval(_ interval: TimeInterval) -> (interval: TimeInterval, didNormalize: Bool) {
+        let presets = AppConfiguration.refreshIntervalPresets
+        let current = Int(interval.rounded())
+        if presets.contains(current) {
+            return (TimeInterval(current), false)
+        }
+
+        let nearest = presets.min { lhs, rhs in
+            let lhsDistance = abs(lhs - current)
+            let rhsDistance = abs(rhs - current)
+            if lhsDistance == rhsDistance {
+                return lhs < rhs
+            }
+            return lhsDistance < rhsDistance
+        } ?? Int(AppConfiguration.defaultRefreshInterval)
+
+        return (TimeInterval(nearest), true)
     }
 
     private func baseSymbol(of symbol: String) -> String {
