@@ -2,6 +2,27 @@
 
 使用轻量日志记录已完成的实际变更。只记录已经落地到代码或文档的内容，不记录纯规划。
 
+## 2026-03-13 - 修复 Publish Release 阶段缺少仓库上下文的问题
+
+### 背景 / 目的
+
+Release 工作流的 `publish` job 只下载构建产物，没有执行 `actions/checkout`。在这种情况下，`gh release view/create/upload` 会尝试从本地 `.git` 推断目标仓库，最终报出 `fatal: not a git repository`，导致发布阶段失败。
+
+### 代码改动点
+
+- 更新 `.github/workflows/release.yml`
+  - 在 `publish` job 中显式注入 `GH_REPO=${{ github.repository }}`
+  - 让 `gh` 命令直接使用 GitHub Actions 提供的仓库上下文，不再依赖本地 git 工作区
+
+### 文档同步情况
+
+- 本条 `docs/CHANGELOG.md` 记录本次 workflow 修复事实
+
+### 验证情况
+
+- 已完成工作流配置修正
+- 需在 GitHub Actions 中重新触发 Release workflow 验证
+
 ## 2026-03-13 - Release 工作流改为仅构建 arm64，并修复异步测试时序问题
 
 ### 背景 / 目的
