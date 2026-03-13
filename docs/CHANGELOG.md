@@ -2,6 +2,40 @@
 
 使用轻量日志记录已完成的实际变更。只记录已经落地到代码或文档的内容，不记录纯规划。
 
+## 2026-03-13 - 新增 GitHub Release 打包与发布流程
+
+### 背景 / 目的
+
+项目当前只有本地 `swift run` / `swift test` 开发方式，缺少可复用的 release 打包流程，也无法在 GitHub 上按版本上传构建产物。需要补齐最小可用的发布链路，方便后续基于 tag 发版。
+
+### 代码改动点
+
+- 新增 `scripts/build_release_app.sh`：
+  - 通过 `swift build -c release` 构建 release 可执行文件
+  - 组装 macOS `.app` 目录结构
+  - 生成 `Info.plist`
+  - 执行 ad-hoc / 指定证书签名
+  - 输出 zip 与 `sha256` 校验文件到 `dist/`
+- 新增 `packaging/Info.plist.template`：
+  - 统一维护 App Bundle 的基础元数据模板
+- 新增 `.github/workflows/release.yml`：
+  - 支持 tag 推送或手动触发发布
+  - 在 `macos-13` / `macos-14` 分别构建 `x64` / `arm64` 产物
+  - 自动创建或更新对应 GitHub Release 并上传产物
+- 更新 `.gitignore`：
+  - 忽略本地产生的 `dist/` 发布目录
+
+### 文档同步情况
+
+- 已更新 `README.md`：补充本地打包命令、GitHub Release 发布步骤和当前签名边界
+- 已更新 `docs/PROJECT.md`：补充打包/发布目录结构、能力边界和协作约束
+- 本条 `docs/CHANGELOG.md` 记录本次实现事实
+
+### 验证情况
+
+- 已执行 `swift test`
+- 已执行 `./scripts/build_release_app.sh macos-arm64`
+
 ## 2026-03-13 - 连续三次请求失败时显示状态栏错误图标
 
 ### 背景 / 目的

@@ -24,12 +24,14 @@
 - 应用重启后恢复已选交易对、自定义交易对列表和刷新间隔
 - 价格显示统一格式化为两位小数（状态栏标题和详情文案一致）
 - 连续三次价格请求失败后，在状态栏标题左侧展示错误图标；任意一次成功请求后自动清除
+- 提供本地 release 打包脚本，可将 Swift 可执行文件组装为 `.app` 并生成 zip 发布包
+- 提供 GitHub Actions 工作流，可按 tag 构建 `macos-x64` / `macos-arm64` 产物并上传到 GitHub Release
 
 当前还不支持：
 
 - 历史价格/缓存策略
 - API 限流与自动退避重试
-- 生产级发布流程
+- Developer ID 签名、公证、自动更新
 
 ## 代码结构
 
@@ -63,6 +65,12 @@
 - `Sources/CryptoTickerApp/Support/TickerCoordinator.swift`：交易对操作、配置落盘、价格刷新协调
 - `Sources/CryptoTickerApp/Support/AppCopy.swift`：界面文案常量
 
+### 打包与发布
+
+- `scripts/build_release_app.sh`：本地 release 打包脚本，执行 `swift build -c release` 后组装 `.app`
+- `packaging/Info.plist.template`：打包 `.app` 时使用的 `Info.plist` 模板
+- `.github/workflows/release.yml`：GitHub Actions 发布工作流，负责测试、构建、上传 Release 产物
+
 ### 测试
 
 - `Tests/CryptoTickerAppTests/AppBootstrapperTests.swift`
@@ -84,6 +92,7 @@
 - 连续失败计数由 `AppState` 统一维护，达到 3 次时才显示状态栏错误图标，成功请求或切换当前交易对后重置
 - 状态栏展示状态由 `AppState` 统一管理，菜单事件由 `StatusBarController` 转发给 `TickerCoordinator`
 - 持久化仅保存：已选交易对、自定义交易对、刷新间隔
+- GitHub Release 工作流当前默认使用 ad-hoc 签名，只保证能生成和上传发布包，不覆盖 Apple 公证链路
 
 ## 开发约定
 
@@ -91,6 +100,7 @@
 - 新功能尽量沿用现有分层，不把业务逻辑直接堆进状态栏控制器
 - 任何代码改动后，都要检查 `README.md`、`docs/PROJECT.md`、`docs/CHANGELOG.md` 是否需要同步
 - 如果只是小修复，至少补一条 `docs/CHANGELOG.md` 记录
+- 发布相关改动优先复用 `scripts/build_release_app.sh` 和 `.github/workflows/release.yml`，避免把打包逻辑散落到多个命令片段
 
 ## 后续推荐协作方式
 

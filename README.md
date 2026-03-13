@@ -2,7 +2,7 @@
 
 一个使用 Swift + SwiftUI/AppKit 构建的 macOS 状态栏加密货币小工具。
 
-当前版本已支持 Binance USDT-M 永续合约实时价格展示、交易对管理和刷新间隔持久化。
+当前版本已支持 Binance USDT-M 永续合约实时价格展示、交易对管理、刷新间隔持久化，以及通过 GitHub Actions 打包并发布到 GitHub Release。
 
 ## 当前能力
 
@@ -15,13 +15,15 @@
 - 状态栏展示格式：币种简称 + 价格，价格统一保留两位小数（如 `BTC 65000.10`）
 - 连续三次价格请求失败后，状态栏标题左侧显示一个错误图标；成功请求后自动清除
 - 刷新间隔仅支持菜单预设 `3/5/10/30/60` 单选，默认 `5`；历史非预设值会自动就近映射并持久化
+- 提供 `scripts/build_release_app.sh`，可在本地生成 `.app` 和 zip 发布包
+- 提供 `.github/workflows/release.yml`，支持按 tag 构建 macOS `x64/arm64` 包并上传到 GitHub Release
 - 基础单元测试覆盖应用状态、协调器和启动流程
 
 ## 当前未实现
 
 - 价格缓存与离线回退
 - 更丰富的错误分类和重试策略
-- 发布、签名与自动更新
+- Developer ID 签名、公证和自动更新
 
 ## 文档约定
 
@@ -44,6 +46,9 @@
 - `Sources/CryptoTickerApp/Services`：协议、Binance 远程服务、刷新调度与配置存储
 - `Sources/CryptoTickerApp/Support`：依赖装配、启动流程、业务协调器与文案
 - `Tests/CryptoTickerAppTests`：基础测试
+- `scripts/build_release_app.sh`：本地 release 打包脚本
+- `.github/workflows/release.yml`：GitHub Release 构建与上传流程
+- `packaging`：`.app` 打包所需模板
 - `docs`：轻量项目文档与变更记录
 
 ## 本地验证
@@ -57,3 +62,43 @@ swift test
 ```bash
 swift run CryptoTickerApp
 ```
+
+本地打包：
+
+```bash
+./scripts/build_release_app.sh macos-arm64
+```
+
+打包产物会输出到 `dist/` 目录，包括：
+
+- `CryptoTicker.app`
+- `CryptoTicker-macos-arm64.zip`
+- 对应的 `sha256` 校验文件
+
+## GitHub Release 发布步骤
+
+1. 确认默认分支已经包含本仓库最新代码和 `.github/workflows/release.yml`
+2. 在 GitHub 仓库设置中允许 Actions 具备 `Read and write permissions`
+3. 本地先执行一次验证：
+
+```bash
+swift test
+./scripts/build_release_app.sh macos-arm64
+```
+
+4. 提交并推送代码后，创建版本 tag：
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+5. GitHub Actions 会自动：
+   - 在 `macos-13` 构建 `x64` 包
+   - 在 `macos-14` 构建 `arm64` 包
+   - 创建或更新对应 tag 的 GitHub Release
+   - 上传 zip 和 `sha256` 文件
+
+6. 在 GitHub 的 Release 页面检查产物是否齐全，再补充发行说明
+
+当前工作流默认使用 ad-hoc 签名，适合先把产物发布出去；如果后续要避免 Gatekeeper 告警，还需要再补 Developer ID 签名和 Apple notarization。
