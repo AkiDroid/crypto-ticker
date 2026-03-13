@@ -3,6 +3,22 @@ import Testing
 
 @MainActor
 struct TickerCoordinatorTests {
+    private func waitUntil(
+        timeoutNanoseconds: UInt64 = 1_000_000_000,
+        pollIntervalNanoseconds: UInt64 = 10_000_000,
+        condition: @escaping @MainActor () -> Bool
+    ) async {
+        let start = ContinuousClock.now
+        let timeout = Duration.nanoseconds(Int64(timeoutNanoseconds))
+
+        while !condition() {
+            if ContinuousClock.now - start >= timeout {
+                break
+            }
+            try? await Task.sleep(nanoseconds: pollIntervalNanoseconds)
+        }
+    }
+
     @Test
     func startTriggersImmediateRefreshAndScheduler() async throws {
         let appState = AppState()
@@ -17,8 +33,9 @@ struct TickerCoordinatorTests {
         )
 
         coordinator.start()
-        await Task.yield()
-        await Task.yield()
+        await waitUntil {
+            appState.statusTitle == "BTC 0.00"
+        }
 
         #expect(scheduler.isRunning)
         #expect(scheduler.lastInterval == 5)

@@ -2,6 +2,31 @@
 
 使用轻量日志记录已完成的实际变更。只记录已经落地到代码或文档的内容，不记录纯规划。
 
+## 2026-03-13 - Release 工作流改为仅构建 arm64，并修复异步测试时序问题
+
+### 背景 / 目的
+
+GitHub Actions 在 `x86_64` runner 上执行测试时，`TickerCoordinatorTests.startTriggersImmediateRefreshAndScheduler()` 对异步刷新完成时机的假设不稳定，导致 workflow 失败。当前需求也明确为仅构建 Apple Silicon 版本，因此将发布工作流收敛为只产出 `arm64`。
+
+### 代码改动点
+
+- 更新 `.github/workflows/release.yml`
+  - 移除 `macos-15-intel` / `macos-x64` 构建矩阵
+  - Release 工作流改为仅在 `macos-15` 构建 `macos-arm64`
+- 更新 `Tests/CryptoTickerAppTests/TickerCoordinatorTests.swift`
+  - 将启动即刷新测试从固定 `Task.yield()` 改为限时轮询等待
+  - 降低不同 runner 调度时序差异带来的偶发失败
+
+### 文档同步情况
+
+- 已更新 `README.md`：同步 Release 当前仅发布 `arm64` 产物
+- 已更新 `docs/PROJECT.md`：同步发布能力边界与协作约束
+- 本条 `docs/CHANGELOG.md` 记录本次修正事实
+
+### 验证情况
+
+- 已执行 `swift test`
+
 ## 2026-03-13 - 新增开机自动启动菜单开关
 
 ### 背景 / 目的

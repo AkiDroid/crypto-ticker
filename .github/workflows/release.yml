@@ -18,16 +18,8 @@ permissions:
 
 jobs:
   build:
-    name: Build ${{ matrix.asset_suffix }}
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: macos-15-intel
-            asset_suffix: macos-x64
-          - runner: macos-15
-            asset_suffix: macos-arm64
+    name: Build macos-arm64
+    runs-on: macos-15
 
     env:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
@@ -51,12 +43,12 @@ jobs:
         env:
           APP_VERSION: ${{ steps.version.outputs.value }}
           BUILD_VERSION: ${{ github.run_number }}
-        run: ./scripts/build_release_app.sh "${{ matrix.asset_suffix }}"
+        run: ./scripts/build_release_app.sh macos-arm64
 
       - name: Upload release assets
         uses: actions/upload-artifact@v6
         with:
-          name: release-${{ matrix.asset_suffix }}
+          name: release-macos-arm64
           path: |
             dist/*.zip
             dist/*.sha256

@@ -27,7 +27,7 @@
 - 价格显示统一格式化为两位小数（状态栏标题和详情文案一致）
 - 连续三次价格请求失败后，在状态栏标题左侧展示错误图标；任意一次成功请求后自动清除
 - 提供本地 release 打包脚本，可将 Swift 可执行文件组装为 `.app` 并生成 zip 发布包
-- 提供 GitHub Actions 工作流，可按 tag 构建 `macos-x64` / `macos-arm64` 产物并上传到 GitHub Release
+- 提供 GitHub Actions 工作流，可按 tag 构建 `macos-arm64` 产物并上传到 GitHub Release
 
 当前还不支持：
 
@@ -72,7 +72,7 @@
 
 - `scripts/build_release_app.sh`：本地 release 打包脚本，执行 `swift build -c release` 后组装 `.app`
 - `packaging/Info.plist.template`：打包 `.app` 时使用的 `Info.plist` 模板
-- `.github/workflows/release.yml`：GitHub Actions 发布工作流，负责测试、构建、上传 Release 产物
+- `.github/workflows/release.yml`：GitHub Actions 发布工作流，负责测试、构建、上传 `macos-arm64` Release 产物
 
 ### 测试
 
@@ -107,6 +107,7 @@
 - 任何代码改动后，都要检查 `README.md`、`docs/PROJECT.md`、`docs/CHANGELOG.md` 是否需要同步
 - 如果只是小修复，至少补一条 `docs/CHANGELOG.md` 记录
 - 发布相关改动优先复用 `scripts/build_release_app.sh` 和 `.github/workflows/release.yml`，避免把打包逻辑散落到多个命令片段
+- 当前 Release 只产出 Apple Silicon (`arm64`) 包；若要恢复 `x64`，需要重新验证测试稳定性和目标 runner 可用性
 
 ## 后续推荐协作方式
 
