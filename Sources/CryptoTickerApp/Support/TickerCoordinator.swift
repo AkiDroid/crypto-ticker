@@ -8,6 +8,7 @@ protocol TickerCoordinating: AnyObject {
     func addCustomSymbol(input: String) -> AppState.SymbolMutationResult
     func removeCustomSymbol(_ symbol: String) -> Bool
     func updateRefreshInterval(input: String) -> AppState.IntervalMutationResult
+    func setLaunchAtLoginEnabled(_ enabled: Bool)
 }
 
 @MainActor
@@ -16,6 +17,7 @@ final class TickerCoordinator: TickerCoordinating {
     private let priceProvider: any PriceProviding
     private let configurationProvider: any AppConfigurationProviding
     private let refreshScheduler: any RefreshScheduling
+    private let launchAtLoginManager: any LaunchAtLoginManaging
     private var selectedPriceRefreshTask: Task<Void, Never>?
     private var hasPersistedNormalizedRefreshInterval = false
 
@@ -23,12 +25,14 @@ final class TickerCoordinator: TickerCoordinating {
         appState: AppState,
         priceProvider: any PriceProviding,
         configurationProvider: any AppConfigurationProviding,
-        refreshScheduler: any RefreshScheduling
+        refreshScheduler: any RefreshScheduling,
+        launchAtLoginManager: any LaunchAtLoginManaging
     ) {
         self.appState = appState
         self.priceProvider = priceProvider
         self.configurationProvider = configurationProvider
         self.refreshScheduler = refreshScheduler
+        self.launchAtLoginManager = launchAtLoginManager
     }
 
     func start() {
@@ -87,6 +91,25 @@ final class TickerCoordinator: TickerCoordinating {
         return result
     }
 
+    func setLaunchAtLoginEnabled(_ enabled: Bool) {
+        do {
+            try launchAtLoginManager.setEnabled(enabled)
+            let resolvedEnabled = launchAtLoginManager.isEnabled
+            appState.setLaunchAtLoginEnabled(resolvedEnabled)
+            persistConfiguration()
+            if enabled && launchAtLoginManager.requiresApproval {
+                appState.setDetailMessage(AppCopy.launchAtLoginRequiresApprovalMessage)
+            } else {
+                appState.setDetailMessage(
+                    resolvedEnabled ? AppCopy.launchAtLoginEnabledMessage : AppCopy.launchAtLoginDisabledMessage
+                )
+            }
+        } catch {
+            appState.setLaunchAtLoginEnabled(launchAtLoginManager.isEnabled)
+            appState.setDetailMessage(AppCopy.launchAtLoginUpdateFailedMessage)
+        }
+    }
+
     private func restartRefreshSchedule() {
         refreshScheduler.stop()
         refreshScheduler.start(interval: appState.refreshInterval) { [weak self] in
@@ -123,7 +146,8 @@ final class TickerCoordinator: TickerCoordinating {
         configurationProvider.saveConfiguration(
             selectedSymbol: appState.selectedSymbol,
             customSymbols: appState.customSymbols,
-            refreshInterval: appState.refreshInterval
+            refreshInterval: appState.refreshInterval,
+            launchAtLoginEnabled: appState.launchAtLoginEnabled
         )
     }
 }

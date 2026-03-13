@@ -24,6 +24,7 @@ final class AppState: ObservableObject {
     @Published private(set) var selectedSymbol: String
     @Published private(set) var customSymbols: [String]
     @Published private(set) var refreshInterval: TimeInterval
+    @Published private(set) var launchAtLoginEnabled: Bool
     @Published private(set) var showsErrorIndicator: Bool = false
 
     let builtinSymbols: [String]
@@ -36,6 +37,7 @@ final class AppState: ObservableObject {
         selectedSymbol: String = AppConfiguration.default.selectedSymbol,
         customSymbols: [String] = AppConfiguration.default.customSymbols,
         refreshInterval: TimeInterval = AppConfiguration.default.refreshInterval,
+        launchAtLoginEnabled: Bool = AppConfiguration.default.launchAtLoginEnabled,
         builtinSymbols: [String] = AppConfiguration.default.builtinSymbols
     ) {
         let normalizedBuiltins = AppState.normalizedUniqueSymbols(from: builtinSymbols)
@@ -51,17 +53,19 @@ final class AppState: ObservableObject {
         self.customSymbols = normalizedCustoms
         self.selectedSymbol = allSymbols.contains(normalizedSelected) ? normalizedSelected : resolvedBuiltins[0]
         self.refreshInterval = normalizedRefreshResult.interval
+        self.launchAtLoginEnabled = launchAtLoginEnabled
         self.didNormalizeRefreshIntervalFromPersistedValue = normalizedRefreshResult.didNormalize
         self.statusTitle = statusTitle
         self.detailMessage = detailMessage
         self.statusTitle = "\(baseSymbol(of: self.selectedSymbol)) --"
     }
 
-    convenience init(configuration: AppConfiguration) {
+    convenience init(configuration: AppConfiguration, launchAtLoginEnabled: Bool? = nil) {
         self.init(
             selectedSymbol: configuration.selectedSymbol,
             customSymbols: configuration.customSymbols,
             refreshInterval: configuration.refreshInterval,
+            launchAtLoginEnabled: launchAtLoginEnabled ?? configuration.launchAtLoginEnabled,
             builtinSymbols: configuration.builtinSymbols
         )
     }
@@ -146,6 +150,10 @@ final class AppState: ObservableObject {
 
     func setDetailMessage(_ message: String) {
         detailMessage = message
+    }
+
+    func setLaunchAtLoginEnabled(_ enabled: Bool) {
+        launchAtLoginEnabled = enabled
     }
 
     static func normalizeSymbol(_ input: String) -> String {

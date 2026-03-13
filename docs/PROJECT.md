@@ -16,12 +16,14 @@
 
 - 应用启动后创建状态栏项
 - 状态栏菜单显示说明、交易对管理、刷新间隔设置和退出入口
+- 状态栏菜单支持通过 checkbox 开关“开机自动启动”
 - 默认交易对 `BTCUSDT`、`ETHUSDT`、`SOLUSDT`，固定不可删除
 - 自定义交易对添加与删除（通过弹窗输入添加；交易对行内删除，并提供确认/取消）
 - 点击交易对后菜单保持展开，选中态对号在菜单内即时切换
 - 选中交易对后即时拉取 Binance USDT-M 永续最新价格
 - 定时刷新价格，刷新间隔仅支持菜单预设 `3/5/10/30/60` 单选并持久化
 - 应用重启后恢复已选交易对、自定义交易对列表和刷新间隔
+- 开机自动启动通过 macOS 系统登录项注册，启动时以系统真实状态为准
 - 价格显示统一格式化为两位小数（状态栏标题和详情文案一致）
 - 连续三次价格请求失败后，在状态栏标题左侧展示错误图标；任意一次成功请求后自动清除
 - 提供本地 release 打包脚本，可将 Swift 可执行文件组装为 `.app` 并生成 zip 发布包
@@ -56,6 +58,7 @@
 - `Sources/CryptoTickerApp/Services/Remote/BinanceFuturesPriceProvider.swift`：Binance 永续价格 API 实现
 - `Sources/CryptoTickerApp/Services/Scheduling/TimerRefreshScheduler.swift`：基于 `Timer` 的刷新调度
 - `Sources/CryptoTickerApp/Services/Storage/UserDefaultsAppConfigurationProvider.swift`：本地配置持久化
+- `Sources/CryptoTickerApp/Services/System/SMAppServiceLaunchAtLoginManager.swift`：封装 macOS `SMAppService.mainApp` 开机自动启动能力
 - `Sources/CryptoTickerApp/Services/Stubs/`：测试用 stub 实现
 
 ### 支持层
@@ -87,11 +90,14 @@
 - 点击交易对不会关闭菜单，当前选中对号会在打开态菜单中即时更新
 - 刷新间隔仅支持 `3/5/10/30/60` 菜单单选
 - 启动时若读取到历史非预设刷新间隔，会就近映射到预设值并回写持久化
+- “开机自动启动”菜单项使用 checkbox 展示当前状态；实际启停结果以系统登录项状态为准
+- 若系统返回 `requiresApproval`，界面会保留开启状态，并提示用户到系统设置的登录项中确认
 - 状态栏标题展示为“币种简称 + 价格”；`USDT` 后缀会被省略
 - 价格文本在可解析为数值时统一显示为两位小数，不可解析时保留原始文本
 - 连续失败计数由 `AppState` 统一维护，达到 3 次时才显示状态栏错误图标，成功请求或切换当前交易对后重置
 - 状态栏展示状态由 `AppState` 统一管理，菜单事件由 `StatusBarController` 转发给 `TickerCoordinator`
-- 持久化仅保存：已选交易对、自定义交易对、刷新间隔
+- 持久化保存：已选交易对、自定义交易对、刷新间隔，以及最近一次开机自动启动开关状态；启动时仍以系统登录项真实状态为准
+- 开机自动启动能力依赖已打包的 `.app`；开发态 `swift run` 不保证可以成功注册登录项
 - GitHub Release 工作流当前默认使用 ad-hoc 签名，只保证能生成和上传发布包，不覆盖 Apple 公证链路
 
 ## 开发约定

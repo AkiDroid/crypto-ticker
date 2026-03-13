@@ -5,6 +5,7 @@ protocol AppConfigurationProviding {
     func saveConfiguration(
         selectedSymbol: String,
         customSymbols: [String],
-        refreshInterval: TimeInterval
+        refreshInterval: TimeInterval,
+        launchAtLoginEnabled: Bool
     )
 }

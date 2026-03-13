@@ -12,7 +12,8 @@ struct TickerCoordinatorTests {
             appState: appState,
             priceProvider: StubPriceProvider(),
             configurationProvider: configurationProvider,
-            refreshScheduler: scheduler
+            refreshScheduler: scheduler,
+            launchAtLoginManager: StubLaunchAtLoginManager()
         )
 
         coordinator.start()
@@ -33,7 +34,8 @@ struct TickerCoordinatorTests {
             appState: appState,
             priceProvider: StubPriceProvider(),
             configurationProvider: configurationProvider,
-            refreshScheduler: scheduler
+            refreshScheduler: scheduler,
+            launchAtLoginManager: StubLaunchAtLoginManager()
         )
 
         coordinator.start()
@@ -52,7 +54,8 @@ struct TickerCoordinatorTests {
             appState: appState,
             priceProvider: StubPriceProvider(),
             configurationProvider: configurationProvider,
-            refreshScheduler: scheduler
+            refreshScheduler: scheduler,
+            launchAtLoginManager: StubLaunchAtLoginManager()
         )
 
         coordinator.selectSymbol("BNBUSDT")
@@ -69,7 +72,8 @@ struct TickerCoordinatorTests {
             appState: appState,
             priceProvider: StubPriceProvider(),
             configurationProvider: configurationProvider,
-            refreshScheduler: scheduler
+            refreshScheduler: scheduler,
+            launchAtLoginManager: StubLaunchAtLoginManager()
         )
 
         coordinator.start()
@@ -97,7 +101,8 @@ struct TickerCoordinatorTests {
             appState: appState,
             priceProvider: priceProvider,
             configurationProvider: configurationProvider,
-            refreshScheduler: scheduler
+            refreshScheduler: scheduler,
+            launchAtLoginManager: StubLaunchAtLoginManager()
         )
 
         coordinator.start()
@@ -110,5 +115,68 @@ struct TickerCoordinatorTests {
         await Task.yield()
 
         #expect(appState.showsErrorIndicator == true)
+    }
+
+    @Test
+    func enableLaunchAtLoginUpdatesStateAndPersistsConfiguration() {
+        let appState = AppState()
+        let scheduler = NoopRefreshScheduler()
+        let configurationProvider = StubAppConfigurationProvider()
+        let launchAtLoginManager = StubLaunchAtLoginManager()
+        let coordinator = TickerCoordinator(
+            appState: appState,
+            priceProvider: StubPriceProvider(),
+            configurationProvider: configurationProvider,
+            refreshScheduler: scheduler,
+            launchAtLoginManager: launchAtLoginManager
+        )
+
+        coordinator.setLaunchAtLoginEnabled(true)
+
+        #expect(appState.launchAtLoginEnabled == true)
+        #expect(configurationProvider.launchAtLoginEnabled == true)
+        #expect(appState.detailMessage == AppCopy.launchAtLoginEnabledMessage)
+    }
+
+    @Test
+    func enableLaunchAtLoginShowsApprovalMessageWhenSystemRequiresApproval() {
+        let appState = AppState()
+        let scheduler = NoopRefreshScheduler()
+        let configurationProvider = StubAppConfigurationProvider()
+        let launchAtLoginManager = StubLaunchAtLoginManager(requiresApproval: true)
+        let coordinator = TickerCoordinator(
+            appState: appState,
+            priceProvider: StubPriceProvider(),
+            configurationProvider: configurationProvider,
+            refreshScheduler: scheduler,
+            launchAtLoginManager: launchAtLoginManager
+        )
+
+        coordinator.setLaunchAtLoginEnabled(true)
+
+        #expect(appState.launchAtLoginEnabled == true)
+        #expect(appState.detailMessage == AppCopy.launchAtLoginRequiresApprovalMessage)
+    }
+
+    @Test
+    func launchAtLoginFailureKeepsResolvedStateAndShowsErrorMessage() {
+        let appState = AppState(launchAtLoginEnabled: false)
+        let scheduler = NoopRefreshScheduler()
+        let configurationProvider = StubAppConfigurationProvider()
+        let launchAtLoginManager = StubLaunchAtLoginManager(isEnabled: false)
+        launchAtLoginManager.shouldThrow = true
+        let coordinator = TickerCoordinator(
+            appState: appState,
+            priceProvider: StubPriceProvider(),
+            configurationProvider: configurationProvider,
+            refreshScheduler: scheduler,
+            launchAtLoginManager: launchAtLoginManager
+        )
+
+        coordinator.setLaunchAtLoginEnabled(true)
+
+        #expect(appState.launchAtLoginEnabled == false)
+        #expect(appState.detailMessage == AppCopy.launchAtLoginUpdateFailedMessage)
+        #expect(configurationProvider.launchAtLoginEnabled == false)
     }
 }

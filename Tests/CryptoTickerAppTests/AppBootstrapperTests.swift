@@ -28,6 +28,8 @@ struct AppBootstrapperTests {
         func updateRefreshInterval(input: String) -> AppState.IntervalMutationResult {
             .invalidFormat
         }
+
+        func setLaunchAtLoginEnabled(_ enabled: Bool) {}
     }
 
     @Test

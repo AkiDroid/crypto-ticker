@@ -2,6 +2,61 @@
 
 使用轻量日志记录已完成的实际变更。只记录已经落地到代码或文档的内容，不记录纯规划。
 
+## 2026-03-13 - 新增开机自动启动菜单开关
+
+### 背景 / 目的
+
+状态栏工具目前只能手动启动。需要在菜单栏中直接提供“开机自动启动”开关，并使用 checkbox 明确展示当前状态，减少重复手动打开应用的成本。
+
+### 代码改动点
+
+- 新增 `LaunchAtLoginManaging` 协议和 `SMAppServiceLaunchAtLoginManager`
+  - 基于 macOS `ServiceManagement.SMAppService.mainApp` 注册/取消注册系统登录项
+  - 支持识别 `requiresApproval` 状态，并将其映射为界面可见的已开启态
+- 更新 `AppState` / `TickerCoordinator`
+  - 新增 `launchAtLoginEnabled` 状态
+  - 增加开机自动启动开关处理、提示文案和配置落盘
+- 更新 `StatusBarController`
+  - 在菜单中新增“启动设置”分组
+  - 使用 checkbox 菜单项控制“开机自动启动”
+- 更新测试桩与测试
+  - 新增 `StubLaunchAtLoginManager`
+  - 增加开机自动启动成功、需审批、失败三类协调器测试
+
+### 文档同步情况
+
+- 已更新 `README.md`：补充菜单 checkbox 开机自动启动能力与使用限制
+- 已更新 `docs/PROJECT.md`：补充系统登录项服务、当前能力边界和行为约束
+- 本条 `docs/CHANGELOG.md` 记录本次实现事实
+
+### 验证情况
+
+- 已执行 `swift test`
+
+## 2026-03-13 - GitHub Actions Release runner 标签与 action 版本修正
+
+### 背景 / 目的
+
+首次执行 Release 工作流时，`macos-13` runner 在当前 GitHub Actions 环境中报出 `The configuration 'macos-13-us-default' is not supported`，同时 `actions/checkout@v4` 触发了 Node.js 20 弃用警告。需要调整到当前仍受支持的 runner 和官方 action 版本。
+
+### 代码改动点
+
+- 更新 `.github/workflows/release.yml`：
+  - 将 `x64` 构建 runner 从 `macos-13` 调整为 `macos-15-intel`
+  - 将 `arm64` 构建 runner 从 `macos-14` 调整为 `macos-15`
+  - 将 `actions/checkout` 升级到 `v5`
+  - 将 `actions/upload-artifact` / `actions/download-artifact` 升级到 `v6`
+
+### 文档同步情况
+
+- 已更新 `README.md`：同步当前 Release 使用的 runner 标签
+- 本条 `docs/CHANGELOG.md` 记录本次修正事实
+
+### 验证情况
+
+- 已基于 GitHub 官方文档与 action release 说明完成配置修正
+- 变更需在 GitHub Actions 上重新触发工作流验证
+
 ## 2026-03-13 - 新增 GitHub Release 打包与发布流程
 
 ### 背景 / 目的

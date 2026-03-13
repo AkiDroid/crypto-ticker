@@ -100,6 +100,20 @@ final class StatusBarController: NSObject {
             menu.addItem(presetItem)
         }
 
+        menu.addItem(.separator())
+        let startupSectionItem = NSMenuItem(title: AppCopy.menuStartupSectionTitle, action: nil, keyEquivalent: "")
+        startupSectionItem.isEnabled = false
+        menu.addItem(startupSectionItem)
+
+        let launchAtLoginItem = NSMenuItem(
+            title: AppCopy.menuLaunchAtLoginTitle,
+            action: #selector(toggleLaunchAtLogin(_:)),
+            keyEquivalent: ""
+        )
+        launchAtLoginItem.target = self
+        launchAtLoginItem.state = appState.launchAtLoginEnabled ? .on : .off
+        menu.addItem(launchAtLoginItem)
+
         let quitItem = NSMenuItem(
             title: AppCopy.quitMenuTitle,
             action: #selector(quitApplication),
@@ -152,7 +166,8 @@ final class StatusBarController: NSObject {
         let menuStructureUpdates: [AnyPublisher<Void, Never>] = [
             appState.$selectedSymbol.map { _ in () }.eraseToAnyPublisher(),
             appState.$customSymbols.map { _ in () }.eraseToAnyPublisher(),
-            appState.$refreshInterval.map { _ in () }.eraseToAnyPublisher()
+            appState.$refreshInterval.map { _ in () }.eraseToAnyPublisher(),
+            appState.$launchAtLoginEnabled.map { _ in () }.eraseToAnyPublisher()
         ]
 
         Publishers.MergeMany(menuStructureUpdates)
@@ -198,6 +213,11 @@ final class StatusBarController: NSObject {
         if case .success = result {
             refreshUI()
         }
+    }
+
+    @objc
+    private func toggleLaunchAtLogin(_ sender: NSMenuItem) {
+        coordinator.setLaunchAtLoginEnabled(sender.state != .on)
     }
 
     private func updateStatusItemAppearance(title: String, showsErrorIndicator: Bool) {

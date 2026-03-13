@@ -14,7 +14,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             appState: container.appState,
             priceProvider: container.priceProvider,
             configurationProvider: container.configurationProvider,
-            refreshScheduler: container.refreshScheduler
+            refreshScheduler: container.refreshScheduler,
+            launchAtLoginManager: container.launchAtLoginManager
         )
         self.coordinator = coordinator
 

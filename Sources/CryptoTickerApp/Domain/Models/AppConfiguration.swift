@@ -5,6 +5,7 @@ struct AppConfiguration: Equatable {
     let selectedSymbol: String
     let customSymbols: [String]
     let refreshInterval: TimeInterval
+    let launchAtLoginEnabled: Bool
 
     static let defaultBuiltinSymbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
     static let defaultRefreshInterval: TimeInterval = 5
@@ -14,6 +15,7 @@ struct AppConfiguration: Equatable {
         builtinSymbols: defaultBuiltinSymbols,
         selectedSymbol: defaultBuiltinSymbols[0],
         customSymbols: [],
-        refreshInterval: defaultRefreshInterval
+        refreshInterval: defaultRefreshInterval,
+        launchAtLoginEnabled: false
     )
 }

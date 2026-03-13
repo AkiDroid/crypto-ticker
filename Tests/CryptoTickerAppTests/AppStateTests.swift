@@ -113,4 +113,19 @@ struct AppStateTests {
 
         #expect(appState.showsErrorIndicator == false)
     }
+
+    @Test
+    func initUsesLaunchAtLoginStateFromConfiguration() {
+        let configuration = AppConfiguration(
+            builtinSymbols: AppConfiguration.default.builtinSymbols,
+            selectedSymbol: AppConfiguration.default.selectedSymbol,
+            customSymbols: [],
+            refreshInterval: AppConfiguration.default.refreshInterval,
+            launchAtLoginEnabled: true
+        )
+
+        let appState = AppState(configuration: configuration)
+
+        #expect(appState.launchAtLoginEnabled == true)
+    }
 }
